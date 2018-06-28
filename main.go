@@ -21,6 +21,7 @@ func main() {
 
 	opts := &reqOpts{
 		headers: headers{make([]string, 0)},
+		method:  method{},
 	}
 	fs.IntVar(&opts.fanOut, "fo", 10, "Number of requests to send concurrently")
 	fs.Var(&opts.method, "X", "HTTP method to use")
@@ -34,9 +35,10 @@ func main() {
 		fmt.Println(example)
 		return
 	}
-
 	cmdArgs := os.Args[1:]
-	fs.Parse(cmdArgs)
+	if err := fs.Parse(cmdArgs); err != nil {
+		log.Fatal(err)
+	}
 
 	if *version {
 		fmt.Printf("Version: %s", Version)
@@ -57,7 +59,7 @@ func main() {
 func stress(url string, opts *reqOpts) error {
 
 	request, e := scurl.NewRequest(url,
-		scurl.MethodOption(string(opts.method)),
+		scurl.MethodOption(opts.method.verb),
 		scurl.BodyOption(opts.body),
 		scurl.HeaderOption(opts.headers.headers...),
 	)
@@ -78,8 +80,10 @@ func stress(url string, opts *reqOpts) error {
 		select {
 		case <-sig:
 			client.Stop()
+			printResult(concurrentResp)
 			return nil
 		case r, ok := <-res:
+
 			if !ok {
 				printResult(concurrentResp)
 				return nil
@@ -151,15 +155,17 @@ type reqOpts struct {
 	body    string
 }
 
-type method string
+type method struct {
+	verb string
+}
 
 func (m method) String() string {
 
-	return string(m)
+	return string(m.verb)
 }
 
 // Set implements the flag.Value interface for HTTP methods.
-func (m method) Set(value string) error {
+func (m *method) Set(value string) error {
 	allowed := []string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodConnect, http.MethodOptions, http.MethodTrace}
 
 	contained := false
@@ -174,7 +180,6 @@ func (m method) Set(value string) error {
 		return fmt.Errorf("method '%s' is not supported, supported methods are %s", value, allowed)
 	}
 
-	m = method(value)
-
+	m.verb = value
 	return nil
 }
