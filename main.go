@@ -10,9 +10,10 @@ import (
 	"os/signal"
 	"time"
 	"log"
+	"runtime"
 )
 
-const Version = "0.1"
+const Version = "0.2"
 
 func main() {
 	fs := flag.NewFlagSet("scurl", flag.ExitOnError)
@@ -50,15 +51,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	if e := stress(fs.Args()[0], opts); e != nil {
 		log.Fatal(e.Error())
 	}
 
 }
 
-func stress(url string, opts *reqOpts) error {
+func stress(target string, opts *reqOpts) error {
 
-	request, e := scurl.NewRequest(url,
+	request, e := scurl.NewRequest(target,
 		scurl.MethodOption(opts.method.verb),
 		scurl.BodyOption(opts.body),
 		scurl.HeaderOption(opts.headers.headers...),
@@ -120,7 +123,7 @@ func stopWhenAllRespReceived(client *scurl.ConcurrentClient, allResp *scurl.Mult
 
 const example = `
 example:
-	scurl -fo 100 -X POST -H "Content-Type: application/json" -d "{\"key":\"val\"}" http://localhost:8080
+	scurl -fo 100 -X POST -H "Content-Type: application/json" -d "{\"key\":\"val\"}" http://localhost:8080
 `
 
 // headers are the http header parameters used in each request

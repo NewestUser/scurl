@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 )
 
 func NewRequest(urlStr string, opts ...ReqOption) (*http.Request, error) {
@@ -69,6 +70,11 @@ func BodyOption(body string) ReqOption {
 	}
 }
 
-func defaultHttpReq(url string) (*http.Request, error) {
-	return http.NewRequest(`GET`, url, nil)
+func defaultHttpReq(target string) (*http.Request, error) {
+
+	if _, err := url.ParseRequestURI(target); err != nil {
+		return nil, err
+	}
+
+	return http.NewRequest(`GET`, target, nil)
 }
