@@ -1,9 +1,10 @@
 package scurl
 
 import (
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
-	"fmt"
 )
 
 func NewTimedClient() *Client {
@@ -34,9 +35,17 @@ func (c *Client) Do(r *http.Request) (*Response, error) {
 
 type Response struct {
 	*http.Response
-	Time time.Duration
+	Time       time.Duration
+	TotalBytes int
 }
 
 func (r *Response) String() string {
 	return fmt.Sprintf("{code=%s, time=%s}", r.Status, r.Time)
+}
+func (r *Response) ReadAndDiscard() {
+	if bytes, err :=ioutil.ReadAll(r.Body); err == nil{
+		r.TotalBytes = len(bytes);
+	}
+
+	r.Body.Close()
 }

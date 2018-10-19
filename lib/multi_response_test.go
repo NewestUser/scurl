@@ -1,9 +1,9 @@
 package scurl
 
 import (
-	"testing"
-	"net/http"
 	"github.com/stretchr/testify/assert"
+	"net/http"
+	"testing"
 )
 
 func TestCanCloseEmptyResponse(t *testing.T) {

@@ -1,9 +1,9 @@
 package scurl
 
 import (
-	"testing"
 	"github.com/stretchr/testify/assert"
 	"net/http"
+	"testing"
 )
 
 func TestWrongFormatOfHeaderOption(t *testing.T) {

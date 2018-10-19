@@ -1,10 +1,10 @@
 package scurl
 
 import (
-	"testing"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
-	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestExecuteGetRequest(t *testing.T) {
@@ -42,8 +42,10 @@ func TestExecuteRequestWithHeaders(t *testing.T) {
 
 func TestExecuteAndFail(t *testing.T) {
 	respHandler := func(w http.ResponseWriter, r *http.Request) {
+		// according to http spec there should be a location header for a redirect
+		// this will cause the response to fail
 		w.WriteHeader(http.StatusMovedPermanently)
-		w.Header().Del(`Location`) // according to http spec there should be a location header for a redirect
+		w.Header().Del(`Location`)
 	}
 
 	fs := httptest.NewServer(http.HandlerFunc(respHandler))

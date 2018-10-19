@@ -1,12 +1,14 @@
 package scurl
 
 import (
-	"strings"
-	"net/http"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"net/url"
+	"strings"
 )
+
+var DefaultMethod = http.MethodGet
 
 func NewRequest(urlStr string, opts ...ReqOption) (*http.Request, error) {
 	r, rErr := defaultHttpReq(urlStr)

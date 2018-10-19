@@ -3,17 +3,18 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
-	"net/http"
-	"strings"
 	"github.com/newestuser/scurl/lib"
-	"os/signal"
-	"time"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
 	"runtime"
+	"strconv"
+	"strings"
+	"time"
 )
 
-const Version = "0.2"
+const Version = "0.3"
 
 func main() {
 	fs := flag.NewFlagSet("scurl", flag.ExitOnError)
@@ -22,10 +23,14 @@ func main() {
 
 	opts := &reqOpts{
 		headers: headers{make([]string, 0)},
-		method:  method{},
+		method:  methodFlag{},
+		rate:    rateFlag{scurl.DefaultRate},
 	}
-	fs.IntVar(&opts.fanOut, "fo", 10, "Number of requests to send concurrently")
-	fs.Var(&opts.method, "X", "HTTP method to use")
+
+	fs.IntVar(&opts.fanOut, "fo", 1, "Fan out factor is the number of clients to spawn")
+	fs.Var(&opts.rate, "rate", "Rate of the requests to be send by the client (i.e. 50/1s)")
+	fs.DurationVar(&opts.duration, "duration", 0, "Duration of stress [0 = forever] (i.e. 1m) (default 0)")
+	fs.Var(&opts.method, "X", "HTTP method to use (default GET)")
 	fs.Var(&opts.headers, "H", "HTTP header to add")
 	fs.StringVar(&opts.body, "d", "", "HTTP body to transport")
 
@@ -36,6 +41,7 @@ func main() {
 		fmt.Println(example)
 		return
 	}
+
 	cmdArgs := os.Args[1:]
 	if err := fs.Parse(cmdArgs); err != nil {
 		log.Fatal(err)
@@ -71,7 +77,11 @@ func stress(target string, opts *reqOpts) error {
 		return e
 	}
 
-	client := scurl.NewConcurrentClient(opts.fanOut)
+	client := scurl.NewConcurrentClient(
+		scurl.FanOutOpt(opts.fanOut),
+		scurl.RateOpt(opts.rate.val),
+		scurl.DurationOpt(opts.duration),
+	)
 
 	res := client.DoReq(request)
 
@@ -92,9 +102,8 @@ func stress(target string, opts *reqOpts) error {
 				return nil
 			}
 
+			r.ReadAndDiscard()
 			concurrentResp.Add(r)
-			r.Body.Close()
-			stopWhenAllRespReceived(client, concurrentResp, opts.fanOut)
 		}
 	}
 
@@ -107,6 +116,7 @@ func printResult(resp *scurl.MultiResponse) {
 		fmt.Println("Avr time:", resp.AvrTime())
 		fmt.Println("Fastest:", resp.Fastest().Time)
 		fmt.Println("Slowest:", resp.Slowest().Time)
+		fmt.Println("Total bytes:", resp.TotalBites())
 
 		statMap := resp.StatusMap()
 		for status, resps := range statMap {
@@ -115,15 +125,9 @@ func printResult(resp *scurl.MultiResponse) {
 	}
 }
 
-func stopWhenAllRespReceived(client *scurl.ConcurrentClient, allResp *scurl.MultiResponse, fanOut int) {
-	if len(allResp.Responses) == fanOut {
-		client.Stop()
-	}
-}
-
 const example = `
 example:
-	scurl -fo 100 -X POST -H "Content-Type: application/json" -d "{\"key\":\"val\"}" http://localhost:8080
+	scurl -rate 50/1s -X POST -H "Content-Type: application/json" -d "{\"key\":\"val\"}" http://localhost:8080
 `
 
 // headers are the http header parameters used in each request
@@ -152,37 +156,96 @@ func (h *headers) Set(value string) error {
 }
 
 type reqOpts struct {
-	fanOut  int
-	method  method
+	fanOut   int
+	rate     rateFlag
+	duration time.Duration
+
+	method  methodFlag
 	headers headers
 	body    string
 }
 
-type method struct {
+type methodFlag struct {
 	verb string
 }
 
-func (m method) String() string {
+func (m *methodFlag) String() string {
 
-	return string(m.verb)
+	return m.verb
 }
 
 // Set implements the flag.Value interface for HTTP methods.
-func (m *method) Set(value string) error {
+func (m *methodFlag) Set(val string) error {
+
+	if len(val) == 0 {
+		m.verb = scurl.DefaultMethod
+		return nil
+	}
+
 	allowed := []string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodConnect, http.MethodOptions, http.MethodTrace}
 
 	contained := false
 	for _, v := range allowed {
-		if v == value {
+		if v == val {
 			contained = true
 			break
 		}
 	}
 
 	if !contained {
-		return fmt.Errorf("method '%s' is not supported, supported methods are %s", value, allowed)
+		return fmt.Errorf("method '%s' is not supported, supported methods are %s", val, allowed)
 	}
 
-	m.verb = value
+	m.verb = val
+	return nil
+}
+
+type rateFlag struct {
+	val *scurl.Rate
+}
+
+func (r *rateFlag) String() string {
+	if r.val == nil {
+		return ""
+	}
+
+	return r.val.String()
+}
+
+// Set implements the flag.Value interface for request rate limiting.
+func (r *rateFlag) Set(val string) error {
+	parts := strings.Split(val, "/")
+
+	if len(parts) == 0 {
+		return fmt.Errorf(`-rate format %q does not match the "freq/duration" format (i.e. 50/1s)`, val)
+	}
+
+	if len(parts) == 1 {
+		parts = append(parts, `1s`)
+	}
+
+	freq, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return fmt.Errorf(`-rate format %s does not match the "freq/duration" format (i.e. 50/1s)`, parts)
+	}
+
+	switch parts[1] {
+	case "ns", "µs", "ms", "s", "m", "h":
+		parts[1] = "1" + parts[1]
+	}
+
+	duration, err := time.ParseDuration(parts[1])
+	if err != nil {
+		return fmt.Errorf("-rate format %s does not match the \"freq/duration\" format (i.e. 50/1s), "+
+			`possible time units ["ns", "µs", "ms", "s", "m", "h"]`, val)
+	}
+
+	r.val.Freq = freq
+	r.val.Per = duration
+
+	if r.val.IsZero() {
+		return fmt.Errorf("-rate value cannot be zero, both freq and duration need to be > 0 (i.e. 50/1s)")
+	}
+
 	return nil
 }
