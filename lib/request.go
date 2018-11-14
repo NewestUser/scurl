@@ -1,8 +1,9 @@
 package scurl
 
 import (
+	"bytes"
+	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -10,8 +11,35 @@ import (
 
 var DefaultMethod = http.MethodGet
 
-func NewRequest(urlStr string, opts ...ReqOption) (*http.Request, error) {
-	r, rErr := defaultHttpReq(urlStr)
+
+type Target struct {
+	Method string      `json:"method"`
+	URL    string      `json:"url"`
+	Body   []byte      `json:"body,omitempty"`
+	Header http.Header `json:"header,omitempty"`
+}
+
+// Request creates an *http.Request with the provided context.Context out of Target and returns it along with an
+// error in case of failure.
+func (t *Target) RequestWithContext(c context.Context) (*http.Request, error) {
+	req, err := http.NewRequest(t.Method, t.URL, bytes.NewReader(t.Body))
+	if err != nil {
+		return nil, err
+	}
+
+	for k, vs := range t.Header {
+		req.Header[k] = make([]string, len(vs))
+		copy(req.Header[k], vs)
+	}
+	if host := req.Header.Get("Host"); host != "" {
+		req.Host = host
+	}
+
+	return req.WithContext(c), nil
+}
+
+func NewTarget(urlStr string, opts ...ReqOption) (*Target, error) {
+	r, rErr := defaultTarget(urlStr)
 
 	if rErr != nil {
 		return nil, rErr
@@ -26,10 +54,10 @@ func NewRequest(urlStr string, opts ...ReqOption) (*http.Request, error) {
 	return r, nil
 }
 
-type ReqOption func(r *http.Request) error
+type ReqOption func(r *Target) error
 
 func MethodOption(method string) ReqOption {
-	return func(req *http.Request) error {
+	return func(req *Target) error {
 		if method == "" {
 			method = http.MethodGet
 		}
@@ -40,7 +68,7 @@ func MethodOption(method string) ReqOption {
 }
 
 func HeaderOption(headers ...string) ReqOption {
-	return func(req *http.Request) error {
+	return func(req *Target) error {
 
 		for _, v := range headers {
 			parts := strings.Split(v, `:`)
@@ -54,6 +82,10 @@ func HeaderOption(headers ...string) ReqOption {
 				return fmt.Errorf(`header cannot be empty %s`, v)
 			}
 
+			if req.Header == nil {
+				req.Header = http.Header{}
+			}
+
 			req.Header[key] = append(req.Header[key], value) // preserve the case of the passed header
 		}
 
@@ -62,21 +94,21 @@ func HeaderOption(headers ...string) ReqOption {
 }
 
 func BodyOption(body string) ReqOption {
-	return func(req *http.Request) error {
-		if body == "" {
+	return func(req *Target) error {
+		if len(body) == 0 {
 			return nil
 		}
 
-		req.Body = ioutil.NopCloser(strings.NewReader(body))
+		req.Body = []byte(body)
 		return nil
 	}
 }
 
-func defaultHttpReq(target string) (*http.Request, error) {
+func defaultTarget(target string) (*Target, error) {
 
 	if _, err := url.ParseRequestURI(target); err != nil {
 		return nil, err
 	}
 
-	return http.NewRequest(`GET`, target, nil)
+	return &Target{Method: `GET`, URL: target}, nil
 }

@@ -15,12 +15,11 @@ func TestExecuteGetRequest(t *testing.T) {
 
 	fs := httptest.NewServer(http.HandlerFunc(respHandler))
 
-	req, err := NewRequest(fs.URL, MethodOption(`GET`))
+	req, _ := http.NewRequest(`GET`, fs.URL, nil)
 
 	resp, _ := NewTimedClient().Do(req)
 
 	assert.Equal(t, resp.StatusCode, http.StatusOK)
-	assert.Nil(t, err)
 }
 
 func TestExecuteRequestWithHeaders(t *testing.T) {
@@ -32,12 +31,12 @@ func TestExecuteRequestWithHeaders(t *testing.T) {
 
 	fs := httptest.NewServer(http.HandlerFunc(respHandler))
 
-	req, err := NewRequest(fs.URL, HeaderOption(`content-type: application-json`))
+	req, _ := http.NewRequest(`GET`, fs.URL, nil)
+	req.Header.Add(`content-type`, `application-json`)
 
 	resp, _ := NewTimedClient().Do(req)
 
 	assert.Equal(t, resp.StatusCode, http.StatusOK)
-	assert.Nil(t, err)
 }
 
 func TestExecuteAndFail(t *testing.T) {
@@ -50,7 +49,7 @@ func TestExecuteAndFail(t *testing.T) {
 
 	fs := httptest.NewServer(http.HandlerFunc(respHandler))
 
-	req, _ := NewRequest(fs.URL)
+	req, _ := http.NewRequest(`GET`, fs.URL, nil)
 
 	resp, respErr := NewTimedClient().Do(req)
 

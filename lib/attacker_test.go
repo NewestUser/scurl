@@ -17,7 +17,7 @@ func TestAttackerRate(t *testing.T) {
 
 	atk := &attacker{}
 
-	req, _ := NewRequest(server.URL)
+	req, _ := NewTarget(server.URL)
 	rate := &Rate{Freq: 100, Per: time.Second}
 
 	hits := 0
@@ -39,7 +39,7 @@ func TestStopAttackWhenOrdered(t *testing.T) {
 		}),
 	)
 
-	req, _ := NewRequest(server.URL)
+	req, _ := NewTarget(server.URL)
 	rate := &Rate{Freq: 1, Per: time.Second}
 
 	atk := &attacker{}

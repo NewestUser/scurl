@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const Version = "0.3"
+const Version = "0.4"
 
 func main() {
 	fs := flag.NewFlagSet("scurl", flag.ExitOnError)
@@ -67,7 +67,7 @@ func main() {
 
 func stress(target string, opts *reqOpts) error {
 
-	request, e := scurl.NewRequest(target,
+	request, e := scurl.NewTarget(target,
 		scurl.MethodOption(opts.method.verb),
 		scurl.BodyOption(opts.body),
 		scurl.HeaderOption(opts.headers.headers...),

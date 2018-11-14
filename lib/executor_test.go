@@ -19,7 +19,7 @@ func TestSingleRequest(t *testing.T) {
 	fs := httptest.NewServer(http.HandlerFunc(respHandler))
 	defer fs.Close()
 
-	req, _ := NewRequest(fs.URL)
+	req, _ := NewTarget(fs.URL)
 
 	client := NewConcurrentClient(
 		FanOutOpt(1),
@@ -55,7 +55,7 @@ func TestReturnFirstResponseIfSecondFails(t *testing.T) {
 	fs := httptest.NewServer(http.HandlerFunc(blockingHandler))
 	defer fs.Close()
 
-	req, _ := NewRequest(fs.URL)
+	req, _ := NewTarget(fs.URL)
 
 	hits := 0
 	for range NewConcurrentClient(FanOutOpt(2)).DoReq(req) {
@@ -73,7 +73,7 @@ func TestCancelAllRequestsIfOrdered(t *testing.T) {
 	fs := httptest.NewServer(http.HandlerFunc(blockingHandler))
 	defer fs.Close()
 
-	request, _ := NewRequest(fs.URL)
+	request, _ := NewTarget(fs.URL)
 
 	client := NewConcurrentClient(FanOutOpt(2), DurationOpt(1*time.Hour))
 	response := client.DoReq(request)

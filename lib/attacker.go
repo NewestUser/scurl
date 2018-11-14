@@ -3,7 +3,6 @@ package scurl
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 )
@@ -63,7 +62,7 @@ type attacker struct {
 	stopper *stopper
 }
 
-func (a *attacker) Attack(req *http.Request, r *Rate, du time.Duration) <-chan *Response {
+func (a *attacker) Attack(t *Target, r *Rate, du time.Duration) <-chan *Response {
 	workers := sync.WaitGroup{}
 	results := make(chan *Response)
 	ticks := make(chan uint64)
@@ -74,7 +73,7 @@ func (a *attacker) Attack(req *http.Request, r *Rate, du time.Duration) <-chan *
 
 	for i := 0; i < a.workers; i++ {
 		workers.Add(1)
-		go a.attack(req, ticks, &workers, results)
+		go a.attack(t, ticks, &workers, results)
 	}
 
 	go func() {
@@ -104,7 +103,7 @@ func (a *attacker) Attack(req *http.Request, r *Rate, du time.Duration) <-chan *
 
 			default:
 				workers.Add(1)
-				go a.attack(req, ticks, &workers, results)
+				go a.attack(t, ticks, &workers, results)
 			}
 		}
 
@@ -113,7 +112,7 @@ func (a *attacker) Attack(req *http.Request, r *Rate, du time.Duration) <-chan *
 	return results
 }
 
-func (a *attacker) attack(req *http.Request, ticks <-chan uint64, workers *sync.WaitGroup, result chan *Response) {
+func (a *attacker) attack(t *Target, ticks <-chan uint64, workers *sync.WaitGroup, result chan *Response) {
 	defer workers.Done()
 
 	for {
@@ -123,7 +122,7 @@ func (a *attacker) attack(req *http.Request, ticks <-chan uint64, workers *sync.
 				return
 			}
 
-			resp := a.hit(req.WithContext(a.stopper.ctx))
+			resp := a.hit(t)
 			if resp != nil {
 				result <- resp
 			}
@@ -136,9 +135,15 @@ func (a *attacker) attack(req *http.Request, ticks <-chan uint64, workers *sync.
 	}
 }
 
-func (a *attacker) hit(req *http.Request) *Response {
+func (a *attacker) hit(t *Target) *Response {
 	if a.client == nil {
 		a.client = &Client{}
+	}
+
+	req, err := t.RequestWithContext(a.stopper.ctx)
+	if err != nil {
+		a.Stop()
+		return nil
 	}
 
 	response, e := a.client.Do(req)

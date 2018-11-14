@@ -1,7 +1,6 @@
 package scurl
 
 import (
-	"net/http"
 	"sync"
 	"time"
 )
@@ -61,7 +60,7 @@ func (c *ConcurrentClient) Stop() {
 	c.stopper.Stop()
 }
 
-func (c *ConcurrentClient) DoReq(req *http.Request) <-chan *Response {
+func (c *ConcurrentClient) DoReq(t *Target) <-chan *Response {
 
 	if c.rate == nil {
 		c.rate = DefaultRate
@@ -74,14 +73,13 @@ func (c *ConcurrentClient) DoReq(req *http.Request) <-chan *Response {
 
 		atk := attacker{stopper: c.stopper}
 		c.attackers = append(c.attackers, atk)
-		reqWithContext := copyReq(req).WithContext(c.stopper.ctx)
 
 		workers.Add(1)
 
 		go func() {
 			defer workers.Done()
 
-			for resp := range atk.Attack(reqWithContext, c.rate, c.du) {
+			for resp := range atk.Attack(t, c.rate, c.du) {
 				respCh <- resp
 			}
 		}()

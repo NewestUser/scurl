@@ -8,7 +8,7 @@ import (
 
 func TestReturnErrorForIncorrectUrl(t *testing.T) {
 
-	request, err := NewRequest(`:`)
+	request, err := NewTarget(`:`)
 
 	assert.Nil(t, request)
 	assert.NotNil(t, err)
@@ -16,7 +16,7 @@ func TestReturnErrorForIncorrectUrl(t *testing.T) {
 
 func TestReturnErrorForOptionThatReturnsError(t *testing.T) {
 
-	req, err := NewRequest(`http://fake.com`, HeaderOption(`incorrect`))
+	req, err := NewTarget(`http://fake.com`, HeaderOption(`incorrect`))
 
 	assert.Nil(t, req)
 	assert.NotNil(t, err)

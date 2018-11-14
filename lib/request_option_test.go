@@ -2,12 +2,11 @@ package scurl
 
 import (
 	"github.com/stretchr/testify/assert"
-	"net/http"
 	"testing"
 )
 
 func TestWrongFormatOfHeaderOption(t *testing.T) {
-	req, _ := http.NewRequest(`GET`, `http://fake.com`, nil)
+	req := &Target{}
 	opt := HeaderOption("wrong-format")
 
 	err := opt(req)
@@ -16,7 +15,7 @@ func TestWrongFormatOfHeaderOption(t *testing.T) {
 }
 
 func TestEmptyHeaderOption(t *testing.T) {
-	req, _ := http.NewRequest(`GET`, `http://fake.com`, nil)
+	req := &Target{}
 	opt := HeaderOption("content-type:")
 
 	err := opt(req)
@@ -26,7 +25,7 @@ func TestEmptyHeaderOption(t *testing.T) {
 
 func TestHeaderOption(t *testing.T) {
 
-	req, _ := http.NewRequest(`GET`, `http://fake.com`, nil)
+	req := &Target{}
 	opt := HeaderOption("content-type: application/json")
 
 	opt(req)
@@ -38,7 +37,7 @@ func TestHeaderOption(t *testing.T) {
 
 func TestMethodOption(t *testing.T) {
 
-	req, _ := http.NewRequest(`GET`, `http://fake.com`, nil)
+	req := &Target{}
 	opt := MethodOption("POST")
 
 	opt(req)
