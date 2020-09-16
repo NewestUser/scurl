@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const Version = "0.4"
+const Version = "0.5"
 
 func main() {
 	fs := flag.NewFlagSet("scurl", flag.ExitOnError)
@@ -25,6 +25,7 @@ func main() {
 		headers: headers{make([]string, 0)},
 		method:  methodFlag{},
 		rate:    rateFlag{scurl.DefaultRate},
+		verbose: false,
 	}
 
 	fs.IntVar(&opts.fanOut, "fo", 1, "Fan out factor is the number of clients to spawn")
@@ -33,6 +34,7 @@ func main() {
 	fs.Var(&opts.method, "X", "HTTP method to use (default GET)")
 	fs.Var(&opts.headers, "H", "HTTP header to add")
 	fs.StringVar(&opts.body, "d", "", "HTTP body to transport")
+	fs.BoolVar(&opts.verbose, "v", false, "Verbose logging")
 
 	fs.Usage = func() {
 		fmt.Println("Usage: scurl [global flags] <url>")
@@ -66,7 +68,6 @@ func main() {
 }
 
 func stress(target string, opts *reqOpts) error {
-
 	request, e := scurl.NewTarget(target,
 		scurl.MethodOption(opts.method.verb),
 		scurl.BodyOption(opts.body),
@@ -81,12 +82,13 @@ func stress(target string, opts *reqOpts) error {
 		scurl.FanOutOpt(opts.fanOut),
 		scurl.RateOpt(opts.rate.val),
 		scurl.DurationOpt(opts.duration),
+		scurl.VerboseOpt(opts.verbose),
 	)
 
 	res := client.DoReq(request)
 
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig)
+	signal.Notify(sig, os.Interrupt)
 
 	concurrentResp := &scurl.MultiResponse{StartTime: time.Now()}
 	for {
@@ -156,6 +158,7 @@ func (h *headers) Set(value string) error {
 }
 
 type reqOpts struct {
+	verbose  bool
 	fanOut   int
 	rate     rateFlag
 	duration time.Duration
@@ -170,7 +173,6 @@ type methodFlag struct {
 }
 
 func (m *methodFlag) String() string {
-
 	return m.verb
 }
 

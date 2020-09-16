@@ -2,6 +2,7 @@ package scurl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -60,6 +61,7 @@ type attacker struct {
 	workers int
 	client  *Client
 	stopper *stopper
+	logger  *logger
 }
 
 func (a *attacker) Attack(t *Target, r *Rate, du time.Duration) <-chan *Response {
@@ -86,11 +88,9 @@ func (a *attacker) Attack(t *Target, r *Rate, du time.Duration) <-chan *Response
 		began := time.Now()
 
 		for {
-
 			time.Sleep(r.RemainingSince(began, count))
 
 			select {
-
 			case ticks <- count:
 				if count++; count == hits {
 					return
@@ -137,7 +137,7 @@ func (a *attacker) attack(t *Target, ticks <-chan uint64, workers *sync.WaitGrou
 
 func (a *attacker) hit(t *Target) *Response {
 	if a.client == nil {
-		a.client = &Client{}
+		a.client = &Client{logger: a.logger}
 	}
 
 	req, err := t.RequestWithContext(a.stopper.ctx)
@@ -149,6 +149,10 @@ func (a *attacker) hit(t *Target) *Response {
 	response, e := a.client.Do(req)
 
 	if e != nil {
+		var cancelError *CancelError
+		if !errors.As(e, &cancelError) {
+			a.logger.debug("Failed attack", e.Error())
+		}
 		a.Stop()
 		return response
 	}
@@ -157,11 +161,9 @@ func (a *attacker) hit(t *Target) *Response {
 }
 
 func (a *attacker) Stop() {
-
 	a.stopper.Stop()
 }
 
 func (a *attacker) Done() <-chan struct{} {
-
 	return a.stopper.Done()
 }

@@ -7,6 +7,19 @@ import (
 
 var DefaultRate = &Rate{Freq: 50, Per: 1 * time.Second}
 
+func NewConcurrentClient(opts ...func(*ConcurrentClient)) *ConcurrentClient {
+	client := &ConcurrentClient{
+		httpClient: NewTimedClient(),
+		stopper:    NewStopper(),
+	}
+
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	return client
+}
+
 func FanOutOpt(num int) func(*ConcurrentClient) {
 	return func(client *ConcurrentClient) {
 		if num < 1 {
@@ -33,21 +46,16 @@ func DurationOpt(du time.Duration) func(*ConcurrentClient) {
 	}
 }
 
-func NewConcurrentClient(opts ...func(*ConcurrentClient)) *ConcurrentClient {
-
-	client := &ConcurrentClient{
-		httpClient: NewTimedClient(),
-		stopper:    NewStopper(),
+func VerboseOpt(verbose bool) func(*ConcurrentClient) {
+	return func(client *ConcurrentClient) {
+		l := &logger{verbose: verbose}
+		client.logger = l
+		client.httpClient.logger = l
 	}
-
-	for _, opt := range opts {
-		opt(client)
-	}
-
-	return client
 }
 
 type ConcurrentClient struct {
+	logger     *logger
 	fanOut     int
 	rate       *Rate
 	du         time.Duration
@@ -61,24 +69,39 @@ func (c *ConcurrentClient) Stop() {
 }
 
 func (c *ConcurrentClient) DoReq(t *Target) <-chan *Response {
-
 	if c.rate == nil {
 		c.rate = DefaultRate
+	}
+	if c.logger == nil {
+		c.logger = mutedLogger
 	}
 
 	workers := sync.WaitGroup{}
 	respCh := make(chan *Response)
 
-	for i := 0; i < c.fanOut; i++ {
+	c.logger.debug("duration:", c.du)
+	c.logger.debug("rate:", c.rate)
+	c.logger.debug("fanOut:", c.fanOut)
+	c.logger.debug(">", t.Method, t.URL)
+	if len(t.Header) != 0 {
+		c.logger.debug(">")
+		for k, v := range t.Header {
+			c.logger.debug("> ", k, ":", v)
+		}
+	}
+	if len(t.Body) != 0 {
+		c.logger.debug(">")
+		c.logger.debug(string(t.Body))
+	}
 
-		atk := attacker{stopper: c.stopper}
+	for i := 0; i < c.fanOut; i++ {
+		atk := attacker{stopper: c.stopper, logger: c.logger}
 		c.attackers = append(c.attackers, atk)
 
 		workers.Add(1)
 
 		go func() {
 			defer workers.Done()
-
 			for resp := range atk.Attack(t, c.rate, c.du) {
 				respCh <- resp
 			}
@@ -87,7 +110,6 @@ func (c *ConcurrentClient) DoReq(t *Target) <-chan *Response {
 
 	go func() {
 		defer close(respCh)
-
 		workers.Wait()
 	}()
 
