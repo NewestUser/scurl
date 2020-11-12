@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -11,18 +13,53 @@ import (
 
 var DefaultMethod = http.MethodGet
 
-
 type Target struct {
-	Method string      `json:"method"`
-	URL    string      `json:"url"`
-	Body   []byte      `json:"body,omitempty"`
-	Header http.Header `json:"header,omitempty"`
+	Method string
+	URL    string
+	Body   BodyProvider
+	Header http.Header
+}
+
+func (t *Target) getBody() io.Reader {
+	if t.Body != nil {
+		return t.Body.Get()
+	}
+	return nil
+}
+
+type BodyProvider interface {
+	Get() io.Reader
+}
+
+type StringBody struct {
+	value string
+}
+
+func (b *StringBody) Get() io.Reader {
+	return strings.NewReader(b.value)
+}
+
+func (b *StringBody) String() string {
+	return b.value
+}
+
+type MultipartFormBody struct {
+	form          map[string]string
+	multipartData []byte
+}
+
+func (b *MultipartFormBody) Get() io.Reader {
+	return bytes.NewReader(b.multipartData)
+}
+
+func (b *MultipartFormBody) String() string {
+	return fmt.Sprintf("%s", b.form)
 }
 
 // Request creates an *http.Request with the provided context.Context out of Target and returns it along with an
 // error in case of failure.
 func (t *Target) RequestWithContext(c context.Context) (*http.Request, error) {
-	req, err := http.NewRequest(t.Method, t.URL, bytes.NewReader(t.Body))
+	req, err := http.NewRequest(t.Method, t.URL, t.getBody())
 	if err != nil {
 		return nil, err
 	}
@@ -93,19 +130,53 @@ func HeaderOption(headers ...string) ReqOption {
 	}
 }
 
-func BodyOption(body string) ReqOption {
+func StringBodyOption(body string) ReqOption {
 	return func(req *Target) error {
 		if len(body) == 0 {
 			return nil
 		}
 
-		req.Body = []byte(body)
+		req.Body = &StringBody{value: body}
+		return nil
+	}
+}
+
+func MultipartFormBodyOption(formValues map[string]string) ReqOption {
+	return func(req *Target) error {
+		if len(formValues) == 0 {
+			return nil
+		}
+
+		// Prepare the multipart form.
+		var buff bytes.Buffer
+		w := multipart.NewWriter(&buff)
+		for key, value := range formValues {
+			formField, err := w.CreateFormField(key)
+			if err != nil {
+				return fmt.Errorf("failed creating multipart form data for key %s and value %s, err: %s", key, value, err)
+			}
+			if _, err = io.Copy(formField, strings.NewReader(value)); err != nil {
+				return fmt.Errorf("failed creating multipart form data for key %s and value %s, err: %s", key, value, err)
+			}
+		}
+		// Close the multipart writer, this will write the terminating boundary.
+		if err := w.Close(); err != nil {
+			return fmt.Errorf("failed creating multipart form data, err: %s", err)
+		}
+
+		formCopy := make([]byte, buff.Len())
+		copy(formCopy, buff.Bytes())
+		req.Body = &MultipartFormBody{form: formValues, multipartData: formCopy}
+
+		if req.Header == nil {
+			req.Header = http.Header{}
+		}
+		req.Header.Add("Content-Type", w.FormDataContentType())
 		return nil
 	}
 }
 
 func defaultTarget(target string) (*Target, error) {
-
 	if _, err := url.ParseRequestURI(target); err != nil {
 		return nil, err
 	}

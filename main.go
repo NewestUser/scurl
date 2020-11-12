@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const Version = "0.5"
+const Version = "0.6"
 
 func main() {
 	fs := flag.NewFlagSet("scurl", flag.ExitOnError)
@@ -26,6 +26,7 @@ func main() {
 		method:  methodFlag{},
 		rate:    rateFlag{scurl.DefaultRate},
 		verbose: false,
+		form:    multipartForm{map[string]string{}},
 	}
 
 	fs.IntVar(&opts.fanOut, "fo", 1, "Fan out factor is the number of clients to spawn")
@@ -34,13 +35,14 @@ func main() {
 	fs.Var(&opts.method, "X", "HTTP method to use (default GET)")
 	fs.Var(&opts.headers, "H", "HTTP header to add")
 	fs.StringVar(&opts.body, "d", "", "HTTP body to transport")
-	fs.BoolVar(&opts.verbose, "v", false, "Verbose logging")
+	fs.Var(&opts.form, "F", "Add form-data in the format [key=value] (Content-Type is set to multipart/form-data)")
+	fs.BoolVar(&opts.verbose, "verbose", false, "Verbose logging")
 
 	fs.Usage = func() {
-		fmt.Println("Usage: scurl [global flags] <url>")
+		fmt.Println("Usage: scurl [global flags] '<url>'")
 		fmt.Printf("\nglobal flags:\n")
 		fs.PrintDefaults()
-		fmt.Println(example)
+		fmt.Print(example)
 		return
 	}
 
@@ -50,7 +52,7 @@ func main() {
 	}
 
 	if *version {
-		fmt.Printf("Version: %s", Version)
+		fmt.Printf("Version: %s\n", Version)
 		return
 	}
 
@@ -68,9 +70,14 @@ func main() {
 }
 
 func stress(target string, opts *reqOpts) error {
+	bodyOption, err := opts.bodyOption()
+	if err != nil {
+		return err
+	}
+
 	request, e := scurl.NewTarget(target,
 		scurl.MethodOption(opts.method.verb),
-		scurl.BodyOption(opts.body),
+		bodyOption,
 		scurl.HeaderOption(opts.headers.headers...),
 	)
 
@@ -108,7 +115,6 @@ func stress(target string, opts *reqOpts) error {
 			concurrentResp.Add(r)
 		}
 	}
-
 }
 
 func printResult(resp *scurl.MultiResponse) {
@@ -129,7 +135,7 @@ func printResult(resp *scurl.MultiResponse) {
 
 const example = `
 example:
-	scurl -rate 50/1s -X POST -H "Content-Type: application/json" -d "{\"key\":\"val\"}" http://localhost:8080
+	scurl -rate 50/1s -X POST -H 'Content-Type: application/json' -d '{"key":"val"}' 'http://localhost:8080'
 `
 
 // headers are the http header parameters used in each request
@@ -157,6 +163,27 @@ func (h *headers) Set(value string) error {
 	return nil
 }
 
+type multipartForm struct {
+	values map[string]string
+}
+
+func (f *multipartForm) Set(value string) error {
+	parts := strings.SplitN(value, "=", 2)
+	if len(parts) == 2 {
+		f.values[parts[0]] = parts[1]
+		return nil
+	} else if len(parts) == 1 {
+		f.values[parts[0]] = ""
+		return nil
+	}
+
+	return fmt.Errorf("form data '%s' has a wrong format", value)
+}
+
+func (f multipartForm) String() string {
+	return fmt.Sprintf("%s", f.values)
+}
+
 type reqOpts struct {
 	verbose  bool
 	fanOut   int
@@ -166,6 +193,19 @@ type reqOpts struct {
 	method  methodFlag
 	headers headers
 	body    string
+	form    multipartForm
+}
+
+func (o reqOpts) bodyOption() (scurl.ReqOption, error) {
+	if len(o.body) != 0 && len(o.form.values) != 0 {
+		return nil, fmt.Errorf("cannot provide both HTTP body '-d' and form-urlencoded data '-F'")
+	}
+
+	if len(o.body) != 0 {
+		return scurl.StringBodyOption(o.body), nil
+	}
+
+	return scurl.MultipartFormBodyOption(o.form.values), nil
 }
 
 type methodFlag struct {
@@ -178,7 +218,6 @@ func (m *methodFlag) String() string {
 
 // Set implements the flag.Value interface for HTTP methods.
 func (m *methodFlag) Set(val string) error {
-
 	if len(val) == 0 {
 		m.verb = scurl.DefaultMethod
 		return nil

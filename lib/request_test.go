@@ -7,7 +7,6 @@ import (
 )
 
 func TestReturnErrorForIncorrectUrl(t *testing.T) {
-
 	request, err := NewTarget(`:`)
 
 	assert.Nil(t, request)
@@ -15,7 +14,6 @@ func TestReturnErrorForIncorrectUrl(t *testing.T) {
 }
 
 func TestReturnErrorForOptionThatReturnsError(t *testing.T) {
-
 	req, err := NewTarget(`http://fake.com`, HeaderOption(`incorrect`))
 
 	assert.Nil(t, req)
@@ -23,7 +21,6 @@ func TestReturnErrorForOptionThatReturnsError(t *testing.T) {
 }
 
 func TestAddingRespIncreasesNumOfTrips(t *testing.T) {
-
 	resp := &MultiResponse{}
 
 	assert.Equal(t, 0, resp.Trips)
@@ -36,7 +33,6 @@ func TestAddingRespIncreasesNumOfTrips(t *testing.T) {
 }
 
 func TestRespStatusMap(t *testing.T) {
-
 	firstOk := &Response{Response: &http.Response{StatusCode: http.StatusOK}}
 	secondOk := &Response{Response: &http.Response{StatusCode: http.StatusOK}}
 

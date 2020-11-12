@@ -10,9 +10,7 @@ import (
 )
 
 func TestSingleRequest(t *testing.T) {
-
 	respHandler := func(w http.ResponseWriter, r *http.Request) {
-
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -36,11 +34,9 @@ func TestSingleRequest(t *testing.T) {
 }
 
 func TestReturnFirstResponseIfSecondFails(t *testing.T) {
-
 	var invocationCounter int32 = 0
 
 	blockingHandler := func(w http.ResponseWriter, r *http.Request) {
-
 		if invocationCounter == 0 {
 			atomic.AddInt32(&invocationCounter, 1)
 			return
@@ -66,7 +62,6 @@ func TestReturnFirstResponseIfSecondFails(t *testing.T) {
 }
 
 func TestCancelAllRequestsIfOrdered(t *testing.T) {
-
 	blockingHandler := func(w http.ResponseWriter, r *http.Request) {
 	}
 
@@ -84,5 +79,4 @@ func TestCancelAllRequestsIfOrdered(t *testing.T) {
 
 	assert.Nil(t, resp)
 	assert.False(t, ok)
-
 }

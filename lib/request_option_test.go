@@ -2,6 +2,8 @@ package scurl
 
 import (
 	"github.com/stretchr/testify/assert"
+	"io/ioutil"
+	"net/url"
 	"testing"
 )
 
@@ -24,11 +26,10 @@ func TestEmptyHeaderOption(t *testing.T) {
 }
 
 func TestHeaderOption(t *testing.T) {
-
 	req := &Target{}
 	opt := HeaderOption("content-type: application/json")
 
-	opt(req)
+	_ = opt(req)
 
 	got := req.Header["content-type"][0]
 
@@ -36,13 +37,34 @@ func TestHeaderOption(t *testing.T) {
 }
 
 func TestMethodOption(t *testing.T) {
-
 	req := &Target{}
 	opt := MethodOption("POST")
 
-	opt(req)
+	_ = opt(req)
 
 	got := req.Method
 
 	assert.Equal(t, `POST`, got)
+}
+
+func TestBodyOptionMultipartFormData(t *testing.T) {
+	req := &Target{}
+
+	form := map[string][]string{
+		"foo": {"bar"},
+		"Zar": {"gar", "dar"},
+	}
+
+	opt := MultipartFormBodyOption(form)
+
+	_ = opt(req)
+
+	expected := url.Values{
+		"foo": {"bar"},
+		"Zar": {"gar", "dar"},
+	}.Encode()
+
+	actual, _ := ioutil.ReadAll(req.getBody())
+
+	assert.Equal(t, expected, string(actual))
 }

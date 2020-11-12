@@ -4,26 +4,30 @@ A command line tool similar to cURL that can be used for sending multiple HTTP r
 
 ## Usage manual
 ```console 
-Usage: scurl [global flags] <url>
+Usage: scurl [global flags] '<url>'
 
 global flags:
+  -F value
+        Add form-data in the format [key=value] (Content-Type is set to multipart/form-data)
   -H value
-    	HTTP header to add
+        HTTP header to add
   -X value
-    	HTTP method to use (default GET)
+        HTTP method to use (default GET)
   -d string
-    	HTTP body to transport
+        HTTP body to transport
   -duration duration
-    	Duration of stress [0 = forever] (i.e. 1m) (default 0)
+        Duration of stress [0 = forever] (i.e. 1m) (default 0)
   -fo int
-    	Fan out factor is the number of clients to spawn (default 1)
+        Fan out factor is the number of clients to spawn (default 1)
   -rate value
-    	Rate of the requests to be send by the client (i.e. 50/1s) (default 50/1s)
+        Rate of the requests to be send by the client (i.e. 50/1s) (default 50/1s)
+  -verbose
+        Verbose logging
   -version
-    	Print version and exit
+        Print version and exit
 
 example:
-	scurl -rate 50/1s -X POST -H "Content-Type: application/json" -d "{\"key\":\"val\"}" http://localhost:8080
+        scurl -rate 50/1s -X POST -H 'Content-Type: application/json' -d '{"key":"val"}' 'http://localhost:8080'
 ```
 
 ## Credit

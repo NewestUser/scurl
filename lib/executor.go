@@ -89,9 +89,9 @@ func (c *ConcurrentClient) DoReq(t *Target) <-chan *Response {
 			c.logger.debug("> ", k, ":", v)
 		}
 	}
-	if len(t.Body) != 0 {
+	if t.Body != nil {
 		c.logger.debug(">")
-		c.logger.debug(string(t.Body))
+		c.logger.debug(t.Body)
 	}
 
 	for i := 0; i < c.fanOut; i++ {
